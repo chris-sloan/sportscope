@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPORTSCOPE — Live Rankings</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060810;
+    --surface: #0d1117;
+    --card: #111827;
+    --border: #1f2937;
+    --accent1: #f59e0b;
+    --accent2: #10b981;
+    --accent3: #ef4444;
+    --accent4: #8b5cf6;
+    --accent5: #06b6d4;
+    --text: #f9fafb;
+    --muted: #6b7280;
+    --hot: #f59e0b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* Header */
+  header {
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(6,8,16,0.95);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.2rem;
+    letter-spacing: 4px;
+    background: linear-gradient(90deg, var(--accent1), var(--accent5));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent2);
+    letter-spacing: 2px;
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    background: var(--accent2);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* Breadcrumb */
+  .breadcrumb {
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .breadcrumb span { cursor: pointer; transition: color 0.2s; }
+  .breadcrumb span:hover { color: var(--accent1); }
+  .breadcrumb span.active { color: var(--text); }
+  .breadcrumb .sep { color: var(--border); }
+
+  /* Page title */
+  .page-header {
+    padding: 12px 32px 8px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .page-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    letter-spacing: 3px;
+    line-height: 1;
+  }
+
+  .ranking-label {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    padding-bottom: 8px;
+  }
+
+  .personalised-banner {
+    margin: 0 32px 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(16,185,129,0.1));
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 8px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent1);
+    letter-spacing: 1.5px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .personalised-banner.show { display: flex; animation: slideIn 0.4s ease; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Grid */
+  .grid {
+    padding: 16px 32px 60px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), border-color 0.25s, box-shadow 0.25s;
+    will-change: transform;
+  }
+
+  .card:hover {
+    transform: translateY(-4px) scale(1.01);
+    border-color: var(--card-accent, var(--accent1));
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px var(--card-accent, var(--accent1));
+  }
+
+  .card:active { transform: scale(0.98); }
+
+  /* Card image strip */
+  .card-image {
+    height: 140px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 5rem;
+    background: var(--card-bg, linear-gradient(135deg, #1f2937, #111827));
+  }
+
+  .card-image::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 40%, var(--card) 100%);
+  }
+
+  /* Rank badge */
+  .rank-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.8rem;
+    line-height: 1;
+    color: rgba(255,255,255,0.12);
+    z-index: 2;
+    transition: color 0.3s;
+    user-select: none;
+  }
+
+  .card:hover .rank-badge { color: rgba(255,255,255,0.3); }
+
+  /* Hot badge for top-ranked after reorder */
+  .rank-1-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--accent1);
+    color: #000;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    z-index: 2;
+    display: none;
+  }
+
+  /* Card body */
+  .card-body {
+    padding: 14px 16px 16px;
+  }
+
+  .card-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.6rem;
+    letter-spacing: 2px;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .card-meta {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: 'Roboto Mono', monospace;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .card-score {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .score-bar {
+    width: 60px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .score-fill {
+    height: 100%;
+    background: var(--card-accent, var(--accent1));
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  /* Arrows for moved cards */
+  .move-indicator {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%);
+    font-size: 1.3rem;
+    font-weight: 900;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 5;
+  }
+
+  .card.moved-up .move-indicator { opacity: 1; color: var(--accent2); content: '▲'; }
+  .card.moved-down .move-indicator { opacity: 1; color: var(--accent3); }
+
+  /* REORDER ANIMATION */
+  @keyframes reorderFlash {
+    0% { background: var(--card); }
+    20% { background: rgba(245,158,11,0.25); box-shadow: 0 0 30px rgba(245,158,11,0.4); }
+    100% { background: var(--card); }
+  }
+
+  .card.reordering { animation: reorderFlash 1s ease forwards; }
+
+  /* moved up — bright green flash */
+  @keyframes movedUp {
+    0% { background: var(--card); }
+    15% { background: rgba(16,185,129,0.3); box-shadow: 0 0 40px rgba(16,185,129,0.5); border-color: var(--accent2); }
+    100% { background: var(--card); }
+  }
+
+  @keyframes movedDown {
+    0% { background: var(--card); }
+    15% { background: rgba(239,68,68,0.2); box-shadow: 0 0 30px rgba(239,68,68,0.3); border-color: var(--accent3); }
+    100% { background: var(--card); }
+  }
+
+  .card.flash-up { animation: movedUp 1.2s ease forwards; }
+  .card.flash-down { animation: movedDown 1.2s ease forwards; }
+
+  /* Detail view */
+  .detail-view {
+    padding: 32px;
+    max-width: 800px;
+    margin: 0 auto;
+    animation: fadeSlideIn 0.4s ease;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .detail-hero {
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 32px;
+    font-size: 8rem;
+  }
+
+  .detail-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--detail-bg);
+    opacity: 0.3;
+  }
+
+  .detail-hero-emoji { position: relative; z-index: 1; filter: drop-shadow(0 0 40px currentColor); }
+
+  .detail-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(3rem, 8vw, 6rem);
+    letter-spacing: 4px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .detail-tag {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--accent1);
+    letter-spacing: 3px;
+    margin-bottom: 32px;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .stat-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.5rem;
+    letter-spacing: 2px;
+    color: var(--accent1);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+
+  .bio-block {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent1);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: #d1d5db;
+    margin-bottom: 24px;
+  }
+
+  .fun-fact {
+    background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(139,92,246,0.08));
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 10px;
+    padding: 20px 24px;
+  }
+
+  .fun-fact-label {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 3px;
+    font-size: 0.9rem;
+    color: var(--accent1);
+    margin-bottom: 8px;
+  }
+
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 24px 32px 0;
+    padding: 10px 20px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .back-btn:hover { border-color: var(--accent1); color: var(--accent1); }
+
+  /* Ticker at bottom */
+  .ticker {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--accent1);
+    color: #000;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 6px 0;
+    overflow: hidden;
+    z-index: 50;
+  }
+
+  .ticker-inner {
+    display: flex;
+    white-space: nowrap;
+    animation: ticker 30s linear infinite;
+  }
+
+  .ticker-item { padding: 0 48px; }
+
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* Grid animation for reorder */
+  .grid-reordering .card {
+    transition: transform 0.5s cubic-bezier(0.34,1.2,0.64,1);
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .grid { padding: 12px 16px 60px; }
+    header { padding: 14px 16px; }
+    .breadcrumb { padding: 12px 16px; }
+    .page-header { padding: 8px 16px; }
+    .personalised-banner { margin: 0 16px 8px; }
+    .detail-view { padding: 16px; }
+    .back-btn { margin: 16px 16px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SPORTSCOPE</div>
+  <div class="live-badge">
+    <div class="live-dot"></div>
+    LIVE RANKINGS
+  </div>
+</header>
+
+<nav class="breadcrumb" id="breadcrumb"></nav>
+
+<div class="personalised-banner" id="personalisedBanner">
+  ⚡ PERSONALISED — rankings updated based on your selections
+</div>
+
+<div class="page-header">
+  <div class="page-title" id="pageTitle">SPORTS</div>
+  <div class="ranking-label">RANKED BY YOUR INTEREST</div>
+</div>
+
+<div id="mainContent"></div>
+
+<div class="ticker">
+  <div class="ticker-inner" id="tickerInner"></div>
+</div>
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+const DATA = {
+  sports: [
+    { id: 'football', name: 'Football', emoji: '⚽', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'THE BEAUTIFUL GAME' },
+    { id: 'basketball', name: 'Basketball', emoji: '🏀', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'FAST & PHYSICAL' },
+    { id: 'tennis', name: 'Tennis', emoji: '🎾', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'PRECISION SPORT' },
+    { id: 'f1', name: 'Formula 1', emoji: '🏎️', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'SPEED & STRATEGY' },
+    { id: 'cricket', name: 'Cricket', emoji: '🏏', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'THE GENTLEMAN\'S GAME' },
+    { id: 'boxing', name: 'Boxing', emoji: '🥊', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'SWEET SCIENCE' },
+  ],
+  teams: {
+    football: [
+      { id: 'mancity', name: 'Man City', emoji: '🔵', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'PREMIER LEAGUE' },
+      { id: 'realmadrid', name: 'Real Madrid', emoji: '⚪', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'LA LIGA' },
+      { id: 'barcelona', name: 'Barcelona', emoji: '🔴', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'LA LIGA' },
+      { id: 'liverpool', name: 'Liverpool', emoji: '❤️', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'PREMIER LEAGUE' },
+      { id: 'arsenal', name: 'Arsenal', emoji: '🔴', color: '#ef4444', bg: 'linear-gradient(135deg,#991b1b,#111827)', tag: 'PREMIER LEAGUE' },
+      { id: 'chelsea', name: 'Chelsea', emoji: '💙', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'PREMIER LEAGUE' },
+    ],
+    basketball: [
+      { id: 'lakers', name: 'Lakers', emoji: '💜', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'NBA WEST' },
+      { id: 'bulls', name: 'Bulls', emoji: '🔴', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'NBA EAST' },
+      { id: 'warriors', name: 'Warriors', emoji: '💛', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'NBA WEST' },
+      { id: 'celtics', name: 'Celtics', emoji: '🍀', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'NBA EAST' },
+      { id: 'heat', name: 'Heat', emoji: '🔥', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'NBA EAST' },
+      { id: 'nets', name: 'Nets', emoji: '🖤', color: '#9ca3af', bg: 'linear-gradient(135deg,#1f2937,#111827)', tag: 'NBA EAST' },
+    ],
+    tennis: [
+      { id: 'wimbledon', name: 'Wimbledon', emoji: '🎩', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'GRAND SLAM' },
+      { id: 'ausopen', name: 'Aus Open', emoji: '🦘', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'GRAND SLAM' },
+      { id: 'roland', name: 'Roland Garros', emoji: '🧱', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'GRAND SLAM' },
+      { id: 'uso', name: 'US Open', emoji: '🗽', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'GRAND SLAM' },
+      { id: 'atp', name: 'ATP Finals', emoji: '🏆', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'YEAR-END' },
+      { id: 'davis', name: 'Davis Cup', emoji: '🌍', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'TEAM EVENT' },
+    ],
+    f1: [
+      { id: 'redbull', name: 'Red Bull', emoji: '🐂', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'CONSTRUCTORS' },
+      { id: 'mercedes', name: 'Mercedes', emoji: '⭐', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'CONSTRUCTORS' },
+      { id: 'ferrari', name: 'Ferrari', emoji: '🐴', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'CONSTRUCTORS' },
+      { id: 'mclaren', name: 'McLaren', emoji: '🟠', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'CONSTRUCTORS' },
+      { id: 'alpine', name: 'Alpine', emoji: '💎', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'CONSTRUCTORS' },
+      { id: 'aston', name: 'Aston Martin', emoji: '💚', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'CONSTRUCTORS' },
+    ],
+    cricket: [
+      { id: 'england', name: 'England', emoji: '🦁', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'TEST NATION' },
+      { id: 'india', name: 'India', emoji: '🇮🇳', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'TEST NATION' },
+      { id: 'australia', name: 'Australia', emoji: '🦘', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'TEST NATION' },
+      { id: 'pakistan', name: 'Pakistan', emoji: '🌙', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'TEST NATION' },
+      { id: 'westindies', name: 'West Indies', emoji: '🌴', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'TEST NATION' },
+      { id: 'southafrica', name: 'South Africa', emoji: '🐆', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'TEST NATION' },
+    ],
+    boxing: [
+      { id: 'heavyweight', name: 'Heavyweight', emoji: '💪', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'DIVISION' },
+      { id: 'middleweight', name: 'Middleweight', emoji: '🏅', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'DIVISION' },
+      { id: 'welterweight', name: 'Welterweight', emoji: '⚡', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'DIVISION' },
+      { id: 'lightweight', name: 'Lightweight', emoji: '🦅', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'DIVISION' },
+      { id: 'featherweight', name: 'Featherweight', emoji: '🕊️', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'DIVISION' },
+      { id: 'superleague', name: 'Super League', emoji: '👑', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'EXHIBITION' },
+    ],
+  },
+  players: {
+    mancity: [
+      { id: 'haaland', name: 'Erling Haaland', emoji: '🔫', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'STRIKER' },
+      { id: 'desbruyne', name: 'Kevin De Bruyne', emoji: '🎯', color: '#06b6d4', bg: 'linear-gradient(135deg,#155e75,#111827)', tag: 'MIDFIELDER' },
+      { id: 'guardiola', name: 'Pep Guardiola', emoji: '🧠', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'MANAGER' },
+      { id: 'ederson', name: 'Ederson', emoji: '🧤', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'GOALKEEPER' },
+    ],
+    realmadrid: [
+      { id: 'vinicius', name: 'Vinícius Jr.', emoji: '⚡', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'WINGER' },
+      { id: 'bellingham', name: 'Jude Bellingham', emoji: '💫', color: '#f59e0b', bg: 'linear-gradient(135deg,#92400e,#111827)', tag: 'MIDFIELDER' },
+      { id: 'ancelotti', name: 'Carlo Ancelotti', emoji: '🎩', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'MANAGER' },
+      { id: 'courtois', name: 'Thibaut Courtois', emoji: '🛡️', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'GOALKEEPER' },
+    ],
+    barcelona: [
+      { id: 'yamal', name: 'Lamine Yamal', emoji: '🌟', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'WINGER' },
+      { id: 'pedri', name: 'Pedri', emoji: '🎨', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'MIDFIELDER' },
+      { id: 'flick', name: 'Hansi Flick', emoji: '📐', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'MANAGER' },
+      { id: 'lewandowski', name: 'Robert Lewandowski', emoji: '🔥', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'STRIKER' },
+    ],
+    liverpool: [
+      { id: 'salah', name: 'Mohamed Salah', emoji: '👑', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'WINGER' },
+      { id: 'alisson', name: 'Alisson Becker', emoji: '🧤', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'GOALKEEPER' },
+      { id: 'szoboszlai', name: 'Szoboszlai', emoji: '⚙️', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'MIDFIELDER' },
+      { id: 'slot', name: 'Arne Slot', emoji: '🔧', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'MANAGER' },
+    ],
+    arsenal: [
+      { id: 'saka', name: 'Bukayo Saka', emoji: '🚀', color: '#ef4444', bg: 'linear-gradient(135deg,#991b1b,#111827)', tag: 'WINGER' },
+      { id: 'odegaard', name: 'Martin Ødegaard', emoji: '🪄', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'MIDFIELDER' },
+      { id: 'arteta', name: 'Mikel Arteta', emoji: '📋', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'MANAGER' },
+      { id: 'havertz', name: 'Kai Havertz', emoji: '🎯', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'STRIKER' },
+    ],
+    chelsea: [
+      { id: 'palmer', name: 'Cole Palmer', emoji: '🧊', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'MIDFIELDER' },
+      { id: 'jackson', name: 'Nicolas Jackson', emoji: '🦁', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'STRIKER' },
+      { id: 'maresca', name: 'Enzo Maresca', emoji: '♟️', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'MANAGER' },
+      { id: 'sanchez', name: 'Robert Sánchez', emoji: '🧤', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'GOALKEEPER' },
+    ],
+    lakers: [
+      { id: 'lebron', name: 'LeBron James', emoji: '👑', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'FORWARD' },
+      { id: 'ad', name: 'Anthony Davis', emoji: '🏰', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'CENTER' },
+      { id: 'bronny', name: 'Bronny James', emoji: '🌱', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'GUARD' },
+      { id: 'redick', name: 'JJ Redick', emoji: '📺', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'COACH' },
+    ],
+    bulls: [
+      { id: 'jordan', name: 'Michael Jordan', emoji: '🐐', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'LEGEND' },
+      { id: 'derozan', name: "DeMar DeRozan", emoji: '🧲', color: '#ef4444', bg: 'linear-gradient(135deg,#991b1b,#111827)', tag: 'GUARD' },
+      { id: 'lavine', name: 'Zach LaVine', emoji: '🛸', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'GUARD' },
+      { id: 'vucevic', name: 'Nikola Vučević', emoji: '🦏', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'CENTER' },
+    ],
+    warriors: [
+      { id: 'curry', name: 'Stephen Curry', emoji: '🍛', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'GUARD' },
+      { id: 'thompson', name: 'Klay Thompson', emoji: '🌊', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'GUARD' },
+      { id: 'green', name: 'Draymond Green', emoji: '🔊', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'FORWARD' },
+      { id: 'kerr', name: 'Steve Kerr', emoji: '🧩', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'COACH' },
+    ],
+    celtics: [
+      { id: 'tatum', name: 'Jayson Tatum', emoji: '⭐', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'FORWARD' },
+      { id: 'brown', name: 'Jaylen Brown', emoji: '🌿', color: '#10b981', bg: 'linear-gradient(135deg,#065f46,#111827)', tag: 'GUARD' },
+      { id: 'holiday', name: 'Jrue Holiday', emoji: '🛡️', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'GUARD' },
+      { id: 'mazzulla', name: 'Joe Mazzulla', emoji: '📐', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'COACH' },
+    ],
+    heat: [
+      { id: 'butler', name: 'Jimmy Butler', emoji: '🔥', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'FORWARD' },
+      { id: 'adebayo', name: 'Bam Adebayo', emoji: '💥', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'CENTER' },
+      { id: 'herro', name: 'Tyler Herro', emoji: '🎲', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'GUARD' },
+      { id: 'spoelstra', name: 'Erik Spoelstra', emoji: '🧮', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'COACH' },
+    ],
+    nets: [
+      { id: 'bridges', name: 'Mikal Bridges', emoji: '🕸️', color: '#9ca3af', bg: 'linear-gradient(135deg,#1f2937,#111827)', tag: 'FORWARD' },
+      { id: 'claxton', name: 'Nic Claxton', emoji: '🗼', color: '#6b7280', bg: 'linear-gradient(135deg,#374151,#111827)', tag: 'CENTER' },
+      { id: 'curry_s', name: 'Seth Curry', emoji: '🎯', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'GUARD' },
+      { id: 'atkinson', name: 'Kenny Atkinson', emoji: '📊', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'COACH' },
+    ],
+    wimbledon: [
+      { id: 'djokovic', name: 'Novak Djokovic', emoji: '🎯', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'LEGEND' },
+      { id: 'federer', name: 'Roger Federer', emoji: '🕊️', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'RETIRED' },
+      { id: 'alcaraz', name: 'Carlos Alcaraz', emoji: '🌅', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'CURRENT CHAMP' },
+      { id: 'raducanu', name: 'Emma Raducanu', emoji: '🌹', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'BRITISH' },
+    ],
+    ausopen: [
+      { id: 'sinner', name: 'Jannik Sinner', emoji: '❄️', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'WORLD NO.1' },
+      { id: 'sabalenka', name: 'Aryna Sabalenka', emoji: '🐻', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'WOMENS CHAMP' },
+      { id: 'zverev', name: 'Alexander Zverev', emoji: '🗻', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'FINALIST' },
+      { id: 'gauff', name: 'Coco Gauff', emoji: '✨', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'CONTENDER' },
+    ],
+    roland: [
+      { id: 'nadal', name: 'Rafael Nadal', emoji: '🐂', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'KING OF CLAY' },
+      { id: 'swiatek', name: 'Iga Świątek', emoji: '🌺', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'QUEEN OF CLAY' },
+      { id: 'thiem', name: 'Dominic Thiem', emoji: '⚡', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'FORMER CHAMP' },
+      { id: 'ruud', name: 'Casper Ruud', emoji: '🌊', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'FINALIST' },
+    ],
+    uso: [
+      { id: 'serena', name: 'Serena Williams', emoji: '👸', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'GREATEST EVER' },
+      { id: 'medvedev', name: 'Daniil Medvedev', emoji: '🤖', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'FORMER CHAMP' },
+      { id: 'gauff2', name: 'Coco Gauff', emoji: '💫', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'CURRENT CHAMP' },
+      { id: 'tiafoe', name: 'Frances Tiafoe', emoji: '🦁', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'CONTENDER' },
+    ],
+    atp: [
+      { id: 'sinner2', name: 'Jannik Sinner', emoji: '🏆', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'DEFENDING' },
+      { id: 'djokovic2', name: 'Novak Djokovic', emoji: '🎖️', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: '7X CHAMP' },
+      { id: 'alcaraz2', name: 'Carlos Alcaraz', emoji: '🌟', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'TOP SEED' },
+      { id: 'zverev2', name: 'Alexander Zverev', emoji: '⚡', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'CONTENDER' },
+    ],
+    davis: [
+      { id: 'spain', name: 'Spain', emoji: '🇪🇸', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: '6X WINNERS' },
+      { id: 'usa', name: 'USA', emoji: '🇺🇸', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'POWERHOUSE' },
+      { id: 'italy', name: 'Italy', emoji: '🇮🇹', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'CURRENT CHAMP' },
+      { id: 'france', name: 'France', emoji: '🇫🇷', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: '10X WINNERS' },
+    ],
+    // F1 teams
+    redbull: [
+      { id: 'verstappen', name: 'Max Verstappen', emoji: '⚡', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'WORLD CHAMPION' },
+      { id: 'perez', name: 'Sergio Pérez', emoji: '🌮', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'DRIVER' },
+      { id: 'horner', name: 'Christian Horner', emoji: '🧭', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'TEAM PRINCIPAL' },
+      { id: 'newey', name: 'Adrian Newey', emoji: '📐', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'DESIGNER' },
+    ],
+    mercedes: [
+      { id: 'hamilton', name: 'Lewis Hamilton', emoji: '🌟', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: '7X CHAMPION' },
+      { id: 'russell', name: 'George Russell', emoji: '🎓', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'DRIVER' },
+      { id: 'wolff', name: 'Toto Wolff', emoji: '🕴️', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'TEAM PRINCIPAL' },
+      { id: 'schumacher_m', name: 'Michael Schumacher', emoji: '🏆', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'LEGEND' },
+    ],
+    ferrari: [
+      { id: 'leclerc', name: 'Charles Leclerc', emoji: '🎭', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'DRIVER' },
+      { id: 'sainz', name: 'Carlos Sainz Jr.', emoji: '🐂', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'DRIVER' },
+      { id: 'vasseur', name: 'Frédéric Vasseur', emoji: '🦁', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'TEAM PRINCIPAL' },
+      { id: 'schumacher_f', name: 'Michael Schumacher', emoji: '👑', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'FERRARI LEGEND' },
+    ],
+    mclaren: [
+      { id: 'norris', name: 'Lando Norris', emoji: '🎮', color: '#f97316', bg: 'linear-gradient(135deg,#7c2d12,#111827)', tag: 'DRIVER' },
+      { id: 'piastri', name: 'Oscar Piastri', emoji: '🦋', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'DRIVER' },
+      { id: 'brown', name: 'Zak Brown', emoji: '🏁', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'CEO' },
+      { id: 'senna_m', name: 'Ayrton Senna', emoji: '✨', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'LEGEND' },
+    ],
+    alpine: [
+      { id: 'ocon', name: 'Esteban Ocon', emoji: '🌊', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'DRIVER' },
+      { id: 'gasly', name: 'Pierre Gasly', emoji: '🔵', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'DRIVER' },
+      { id: 'famin', name: 'Bruno Famin', emoji: '🔧', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'TEAM PRINCIPAL' },
+      { id: 'alonso_a', name: 'Fernando Alonso', emoji: '🏛️', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'ALPINE LEGEND' },
+    ],
+    aston: [
+      { id: 'alonso', name: 'Fernando Alonso', emoji: '👴', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'DRIVER' },
+      { id: 'stroll', name: 'Lance Stroll', emoji: '🍁', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'DRIVER' },
+      { id: 'krack', name: 'Mike Krack', emoji: '⚙️', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'TEAM PRINCIPAL' },
+      { id: 'stroll_l', name: 'Lawrence Stroll', emoji: '💰', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'OWNER' },
+    ],
+    // Cricket teams
+    england: [
+      { id: 'stokes', name: 'Ben Stokes', emoji: '⚡', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'CAPTAIN' },
+      { id: 'root', name: 'Joe Root', emoji: '📊', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'BATTER' },
+      { id: 'anderson', name: 'James Anderson', emoji: '🌪️', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'LEGEND' },
+      { id: 'duckett', name: 'Ben Duckett', emoji: '🎯', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'BATTER' },
+    ],
+    india: [
+      { id: 'rohit', name: 'Rohit Sharma', emoji: '👑', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'CAPTAIN' },
+      { id: 'kohli', name: 'Virat Kohli', emoji: '🔥', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'LEGEND' },
+      { id: 'bumrah', name: 'Jasprit Bumrah', emoji: '💥', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'BOWLER' },
+      { id: 'jadeja', name: 'Ravindra Jadeja', emoji: '⚔️', color: '#84cc16', bg: 'linear-gradient(135deg,#365314,#111827)', tag: 'ALL-ROUNDER' },
+    ],
+    australia: [
+      { id: 'smith', name: 'Steve Smith', emoji: '🦘', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'BATTER' },
+      { id: 'cummins', name: 'Pat Cummins', emoji: '⚡', color: '#f59e0b', bg: 'linear-gradient(135deg,#92400e,#111827)', tag: 'CAPTAIN/BOWLER' },
+      { id: 'warner', name: 'David Warner', emoji: '💣', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'OPENER' },
+      { id: 'mcgrath', name: 'Glenn McGrath', emoji: '🎯', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'LEGEND' },
+    ],
+    pakistan: [
+      { id: 'babar', name: 'Babar Azam', emoji: '⭐', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'CAPTAIN' },
+      { id: 'shaheen', name: 'Shaheen Afridi', emoji: '🌙', color: '#10b981', bg: 'linear-gradient(135deg,#065f46,#111827)', tag: 'BOWLER' },
+      { id: 'younis', name: 'Younis Khan', emoji: '🏆', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'LEGEND' },
+      { id: 'wasim', name: 'Wasim Akram', emoji: '🌀', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'BOWLING LEGEND' },
+    ],
+    westindies: [
+      { id: 'holder', name: 'Jason Holder', emoji: '🌴', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'ALL-ROUNDER' },
+      { id: 'sobers', name: 'Garfield Sobers', emoji: '🐐', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'GOAT' },
+      { id: 'ambrose', name: 'Curtly Ambrose', emoji: '🗼', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'BOWLING LEGEND' },
+      { id: 'hetmyer', name: 'Shimron Hetmyer', emoji: '💥', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'BATTER' },
+    ],
+    southafrica: [
+      { id: 'devilliers', name: 'AB de Villiers', emoji: '🦸', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'LEGEND' },
+      { id: 'steyn', name: 'Dale Steyn', emoji: '🌪️', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'BOWLING LEGEND' },
+      { id: 'rabada', name: 'Kagiso Rabada', emoji: '⚡', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'BOWLER' },
+      { id: 'elgar', name: 'Dean Elgar', emoji: '🏔️', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'BATTER' },
+    ],
+    // Boxing divisions
+    heavyweight: [
+      { id: 'fury', name: 'Tyson Fury', emoji: '🐺', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'THE GYPSY KING' },
+      { id: 'usyk', name: 'Oleksandr Usyk', emoji: '🧠', color: '#3b82f6', bg: 'linear-gradient(135deg,#1e3a8a,#111827)', tag: 'UNIFIED CHAMP' },
+      { id: 'joshua', name: 'Anthony Joshua', emoji: '💪', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'AJ' },
+      { id: 'wilder', name: 'Deontay Wilder', emoji: '💣', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'BRONZE BOMBER' },
+    ],
+    middleweight: [
+      { id: 'canelo', name: 'Canelo Álvarez', emoji: '🌶️', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'POUND FOR POUND' },
+      { id: 'golovkin', name: 'Gennady Golovkin', emoji: '🎯', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'GGG' },
+      { id: 'andrade', name: 'Demetrius Andrade', emoji: '⚡', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'UNBEATEN' },
+      { id: 'charlo', name: 'Jermell Charlo', emoji: '👊', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'SUPER WELTER' },
+    ],
+    welterweight: [
+      { id: 'crawford', name: 'Terence Crawford', emoji: '👑', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'P4P #1' },
+      { id: 'spence', name: 'Errol Spence Jr.', emoji: '🔱', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'UNIFIED CHAMP' },
+      { id: 'pacquiao', name: 'Manny Pacquiao', emoji: '🇵🇭', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: '8-DIVISION LEGEND' },
+      { id: 'maidana', name: 'Marcos Maidana', emoji: '🐂', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'BRAWLER' },
+    ],
+    lightweight: [
+      { id: 'lomachenko', name: 'Vasiliy Lomachenko', emoji: '🎭', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'MATRIX' },
+      { id: 'haney', name: 'Devin Haney', emoji: '💎', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'THE DREAM' },
+      { id: 'prograis', name: 'Regis Prograis', emoji: '👿', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'ROUGAROU' },
+      { id: 'garcia', name: 'Ryan Garcia', emoji: '✨', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'KING RY' },
+    ],
+    featherweight: [
+      { id: 'lomachenko2', name: 'Vasiliy Lomachenko', emoji: '🧩', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'FORMER CHAMP' },
+      { id: 'valdez', name: 'Oscar Valdez', emoji: '🌵', color: '#10b981', bg: 'linear-gradient(135deg,#064e3b,#111827)', tag: 'AZTEC WARRIOR' },
+      { id: 'shakur', name: 'Shakur Stevenson', emoji: '🦅', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'P4P RISING' },
+      { id: 'morales', name: 'Erik Morales', emoji: '🌶️', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'LEGEND' },
+    ],
+    superleague: [
+      { id: 'mayweather', name: 'Floyd Mayweather', emoji: '💰', color: '#f59e0b', bg: 'linear-gradient(135deg,#78350f,#111827)', tag: 'MONEY' },
+      { id: 'paul', name: 'Jake Paul', emoji: '📱', color: '#ef4444', bg: 'linear-gradient(135deg,#7f1d1d,#111827)', tag: 'THE PROBLEM CHILD' },
+      { id: 'logan', name: 'Logan Paul', emoji: '🎬', color: '#8b5cf6', bg: 'linear-gradient(135deg,#4c1d95,#111827)', tag: 'MAVERICK' },
+      { id: 'fury_t', name: 'Tommy Fury', emoji: '🌹', color: '#06b6d4', bg: 'linear-gradient(135deg,#0e7490,#111827)', tag: 'TNT' },
+    ],
+  },
+  // Player details: unique interesting facts
+  playerDetails: {
+    haaland: { stats: [{v:'94',l:'GOALS/SEASON'},{v:'1.1',l:'GOALS PER GAME'},{v:'6\'4"',l:'HEIGHT'},{v:'23',l:'AGE'}], bio: 'Erling Haaland is arguably the most clinical striker in world football. His father Alfie Haaland also played for Man City — before Roy Keane ended his career in a notorious tackle. Erling grew up determined to reach the top.', fact: '⚡ He once scored 9 goals in a single U20 World Cup game — a tournament record that still stands today.' },
+    desbruyne: { stats: [{v:'127',l:'CAREER ASSISTS'},{v:'10',l:'SEASONS AT CITY'},{v:'3',l:'PL TITLES'},{v:'33',l:'AGE'}], bio: 'Kevin De Bruyne is considered one of the greatest midfielders of his generation. His vision, passing range, and ability to control a game are unmatched in the Premier League.', fact: '🧠 De Bruyne holds the Premier League record for most assists in a single season — 20, set in 2019/20.' },
+    guardiola: { stats: [{v:'35',l:'TROPHIES WON'},{v:'76%',l:'WIN RATE'},{v:'3',l:'CL TITLES'},{v:'53',l:'AGE'}], bio: 'Pep Guardiola is widely considered the greatest football manager of the modern era. His tiki-taka revolution at Barcelona changed football forever.', fact: '🏆 Guardiola has won league titles in Spain, Germany, AND England — a feat no other manager has matched.' },
+    vinicius: { stats: [{v:'73',l:'CL GOALS'},{v:'100+',l:'LA LIGA GOALS'},{v:'22',l:'AGE'},{v:'7',l:'SHIRT NO.'}], bio: 'Vinícius Júnior arrived at Real Madrid as a teenager from Brazil and became one of the most electric wingers on the planet. His dribbling and directness terrify defenders.', fact: '🎭 Vinicius famously dances after scoring goals — which led to opposition fans mocking him, only for him to score more goals and dance even harder.' },
+    bellingham: { stats: [{v:'23',l:'AGE'},{v:'28',l:'GOALS SEASON 1'},{v:'£115M',l:'TRANSFER FEE'},{v:'10',l:'SHIRT NO.'}], bio: 'Jude Bellingham became the most expensive British footballer in history when he moved from Borussia Dortmund to Real Madrid. In his first season he was arguably the best player in the world.', fact: '🌟 Bellingham scored a last-minute winner vs. Barcelona in El Clásico on his first-ever Derby appearance at Madrid.' },
+    salah: { stats: [{v:'220+',l:'LFC GOALS'},{v:'5',l:'SEASONS 20+'},{v:'£75M',l:'2017 FEE'},{v:'32',l:'AGE'}], bio: 'Mohamed Salah is Liverpool\'s greatest ever Premier League scorer. His pace and finishing are legendary, and he remains one of the Premier League\'s most clinical players.', fact: '🐐 Salah is the fastest player in Liverpool history to reach 50, 100, 150 and 200 goals for the club.' },
+    saka: { stats: [{v:'22',l:'AGE'},{v:'7',l:'SHIRT NO.'},{v:'60+',l:'ENGLAND CAPS'},{v:'90%',l:'DRIBBLE SUCCESS'}], bio: 'Bukayo Saka emerged from Arsenal\'s academy as a teenager and became the cornerstone of Mikel Arteta\'s rebuild. His versatility and quality make him one of England\'s most important players.', fact: '🏠 Saka grew up in Ealing, West London — just a short bus ride from Arsenal\'s Hurst Road training ground where he first started.' },
+    lebron: { stats: [{v:'40K+',l:'CAREER POINTS'},{v:'10K+',l:'ASSISTS'},{v:'4',l:'NBA TITLES'},{v:'40',l:'AGE'}], bio: 'LeBron James is the NBA\'s all-time leading scorer and is widely considered among the greatest basketball players ever to live. He has played at elite level for over two decades.', fact: '👨‍👦 LeBron became the first player in NBA history to share a court with his own son — Bronny James — when both played for the Lakers simultaneously.' },
+    curry: { stats: [{v:'3754',l:'3-POINTERS'},{v:'4',l:'NBA TITLES'},{v:'54.2%',l:'TRUE SHOOT%'},{v:'36',l:'AGE'}], bio: 'Stephen Curry revolutionized basketball. Before him, shooting from beyond 30 feet was considered reckless. He made the impossible routine, and in doing so changed how the entire sport is played.', fact: '🏀 Curry holds the NBA record for 3-pointers made in a season (402), and he once hit 105 consecutive 3-pointers in practice — a feat no one has ever replicated.' },
+    djokovic: { stats: [{v:'24',l:'GRAND SLAMS'},{v:'428',l:'WEEKS AT NO.1'},{v:'37',l:'AGE'},{v:'$170M',l:'PRIZE MONEY'}], bio: 'Novak Djokovic holds the most Grand Slam singles titles in men\'s tennis history. His mental strength and physical endurance are unparalleled.', fact: '🧘 Djokovic follows a strict gluten-free diet, which he credits with transforming his career after being told he might have to retire in his early 20s.' },
+    verstappen: { stats: [{v:'4',l:'WDC TITLES'},{v:'60+',l:'RACE WINS'},{v:'27',l:'AGE'},{v:'1',l:'RACE STARTS AS TEEN'}], bio: 'Max Verstappen became the youngest ever F1 race winner at 18. He has since dominated Formula 1, winning four consecutive world championships with Red Bull.', fact: '🏎️ Verstappen became F1\'s youngest race starter at 17 years, 166 days — he drove to school that very morning before flying to the Bahrain Grand Prix.' },
+    hamilton: { stats: [{v:'7',l:'WDC TITLES'},{v:'103',l:'RACE WINS'},{v:'40',l:'AGE'},{v:'103',l:'POLE POSITIONS'}], bio: 'Lewis Hamilton is the most successful Formula 1 driver in history. He shattered Michael Schumacher\'s records and became a global icon both on and off the track.', fact: '✊ Hamilton became the first Black driver to compete in Formula 1 when he debuted in 2007 — and immediately challenged for the championship as a rookie.' },
+    fury: { stats: [{v:'34',l:'WINS'},{v:'1',l:'DRAW'},{v:'0',l:'LOSSES'},{v:'6\'9"',l:'HEIGHT'}], bio: 'Tyson Fury, "The Gypsy King", is one of boxing\'s most colourful and talented fighters. His rise from alcoholism and suicidal thoughts back to world champion is one of sport\'s great redemption stories.', fact: '💪 After being knocked down for 10 counts by Wilder in their first fight, Fury miraculously rose at the count of nine and went on to win the rematch by TKO.' },
+    canelo: { stats: [{v:'61',l:'WINS'},{v:'2',l:'LOSSES'},{v:'4',l:'WEIGHT CLASSES'},{v:'34',l:'AGE'}], bio: 'Saúl "Canelo" Álvarez is the undisputed super middleweight champion and Mexico\'s biggest sporting icon. His combination of power, speed, and ring IQ makes him the pound-for-pound king.', fact: '🌶️ Canelo\'s red hair is so rare among Mexican boxers that his promoters initially had to explain to audiences that no, he wasn\'t American.' },
+    kohli: { stats: [{v:'80+',l:'TEST CENTURIES'},{v:'27000+',l:'INTL RUNS'},{v:'35',l:'AGE'},{v:'18',l:'IPL TONS'}], bio: 'Virat Kohli is India\'s most celebrated modern cricketer and one of the greatest batters of all time. His fitness standards transformed Indian cricket culture.', fact: '💪 Kohli has scored centuries in all three formats of the game at the highest level — a feat matched by very few players in cricket history.' },
+    // Default detail for any unspecified player
+    _default: { stats: [{v:'⭐',l:'RATING'},{v:'PRO',l:'LEVEL'},{v:'ELITE',l:'STATUS'},{v:'TOP',l:'RANKING'}], bio: 'An elite athlete at the peak of their profession, this individual has dedicated their career to mastering their craft and inspiring the next generation.', fact: '🏆 Every great athlete started somewhere — this competitor\'s journey from grassroots to the top level is a story worth knowing.' },
+  }
+};
+
+// ============================================================
+// WEIGHTING ENGINE
+// ============================================================
+// Structure: { pageKey: { itemId: clickCount } }
+// pageKey = 'sports' | 'teams_football' | 'players_mancity' etc.
+
+const STORAGE_KEY = 'sportscope_weights';
+
+function loadWeights() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+  catch { return {}; }
+}
+
+function saveWeights(w) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(w));
+}
+
+function recordClick(pageKey, itemId) {
+  const w = loadWeights();
+  if (!w[pageKey]) w[pageKey] = {};
+  w[pageKey][itemId] = (w[pageKey][itemId] || 0) + 1;
+  saveWeights(w);
+}
+
+function getWeightedOrder(pageKey, items) {
+  const w = loadWeights();
+  const pageWeights = w[pageKey] || {};
+  // Score = clicks * 10 + small random noise for ties
+  return [...items].sort((a, b) => {
+    const scoreA = (pageWeights[a.id] || 0) * 10 + Math.random() * 0.1;
+    const scoreB = (pageWeights[b.id] || 0) * 10 + Math.random() * 0.1;
+    return scoreB - scoreA;
+  });
+}
+
+function hasPersonalisation(pageKey) {
+  const w = loadWeights();
+  return Object.keys(w[pageKey] || {}).length > 0;
+}
+
+function getMaxScore(pageKey) {
+  const w = loadWeights();
+  const pageWeights = w[pageKey] || {};
+  return Math.max(0, ...Object.values(pageWeights));
+}
+
+// ============================================================
+// STATE
+// ============================================================
+let currentState = { level: 'sports', sport: null, team: null };
+
+// ============================================================
+// RENDER ENGINE
+// ============================================================
+
+function getPageKey() {
+  if (currentState.level === 'sports') return 'sports';
+  if (currentState.level === 'teams') return `teams_${currentState.sport}`;
+  if (currentState.level === 'players') return `players_${currentState.team}`;
+  return 'sports';
+}
+
+function getCurrentItems() {
+  if (currentState.level === 'sports') return DATA.sports;
+  if (currentState.level === 'teams') return DATA.teams[currentState.sport] || [];
+  if (currentState.level === 'players') return DATA.players[currentState.team] || [];
+  return [];
+}
+
+function render() {
+  const level = currentState.level;
+
+  if (level === 'detail') {
+    renderDetail();
+    return;
+  }
+
+  const pageKey = getPageKey();
+  const items = getCurrentItems();
+  const orderedItems = getWeightedOrder(pageKey, items);
+  const personalised = hasPersonalisation(pageKey);
+  const maxScore = getMaxScore(pageKey);
+  const weights = loadWeights()[pageKey] || {};
+
+  // Page title
+  const titles = { sports: 'SPORTS', teams: currentState.sport?.toUpperCase(), players: currentState.team?.toUpperCase() };
+  document.getElementById('pageTitle').textContent = titles[level] || 'SPORTS';
+
+  // Banner
+  const banner = document.getElementById('personalisedBanner');
+  if (personalised) banner.classList.add('show');
+  else banner.classList.remove('show');
+
+  // Breadcrumb
+  updateBreadcrumb();
+
+  // Grid
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+
+  orderedItems.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.setProperty('--card-accent', item.color);
+    card.style.setProperty('--card-bg', item.bg);
+    card.dataset.id = item.id;
+    card.dataset.rank = idx + 1;
+
+    const clickCount = weights[item.id] || 0;
+    const scorePercent = maxScore > 0 ? Math.round((clickCount / maxScore) * 100) : 0;
+
+    card.innerHTML = `
+      <div class="card-image" style="background: ${item.bg}">
+        <span style="font-size:4.5rem;position:relative;z-index:1;">${item.emoji}</span>
+        <div class="rank-badge">${idx + 1}</div>
+        ${idx === 0 && personalised ? '<div class="rank-1-badge" style="display:block">TOP PICK</div>' : ''}
+      </div>
+      <div class="card-body">
+        <div class="card-name" style="color:${item.color}">${item.name}</div>
+        <div class="card-meta">
+          <span>${item.tag}</span>
+          <div class="card-score">
+            <div class="score-bar"><div class="score-fill" style="width:${scorePercent}%;background:${item.color}"></div></div>
+            <span style="font-size:0.65rem;color:${item.color}">${clickCount > 0 ? clickCount+'x' : ''}</span>
+          </div>
+        </div>
+      </div>
+      <span class="move-indicator"></span>
+    `;
+
+    card.addEventListener('click', () => handleCardClick(item, card, pageKey));
+    grid.appendChild(card);
+  });
+
+  // Replace content
+  const content = document.getElementById('mainContent');
+  const existing = content.querySelector('.grid');
+  if (existing) {
+    // Animate out old, in new
+    existing.style.opacity = '0';
+    existing.style.transform = 'translateY(8px)';
+    existing.style.transition = 'all 0.2s ease';
+    setTimeout(() => {
+      content.innerHTML = '';
+      grid.style.opacity = '0';
+      content.appendChild(grid);
+      requestAnimationFrame(() => {
+        grid.style.transition = 'opacity 0.3s ease';
+        grid.style.opacity = '1';
+      });
+    }, 200);
+  } else {
+    content.innerHTML = '';
+    content.appendChild(grid);
+  }
+
+  updateTicker(orderedItems);
+}
+
+function handleCardClick(item, cardEl, pageKey) {
+  // Record the click
+  recordClick(pageKey, item.id);
+
+  // Flash the card
+  cardEl.classList.add('reordering');
+  setTimeout(() => cardEl.classList.remove('reordering'), 1000);
+
+  // Navigate
+  setTimeout(() => navigate(item), 150);
+}
+
+function navigate(item) {
+  if (currentState.level === 'sports') {
+    currentState = { level: 'teams', sport: item.id, team: null };
+    render();
+  } else if (currentState.level === 'teams') {
+    currentState = { ...currentState, level: 'players', team: item.id };
+    render();
+  } else if (currentState.level === 'players') {
+    currentState = { ...currentState, level: 'detail', player: item };
+    renderDetail();
+  }
+}
+
+function goBack() {
+  if (currentState.level === 'detail') {
+    currentState = { ...currentState, level: 'players', player: null };
+  } else if (currentState.level === 'players') {
+    currentState = { level: 'teams', sport: currentState.sport, team: null };
+  } else if (currentState.level === 'teams') {
+    currentState = { level: 'sports', sport: null, team: null };
+  }
+  render();
+
+  // After going back, animate cards that moved
+  setTimeout(animateReorder, 300);
+}
+
+function animateReorder() {
+  const cards = document.querySelectorAll('.card');
+  cards.forEach((card, idx) => {
+    const rank = parseInt(card.dataset.rank);
+    if (rank !== idx + 1) {
+      // Rank changed — already reordered by JS, just flash
+      const moved = rank > idx + 1 ? 'flash-up' : 'flash-down';
+      card.classList.add(moved);
+      setTimeout(() => card.classList.remove(moved), 1200);
+      card.dataset.rank = idx + 1;
+    }
+  });
+}
+
+function renderDetail() {
+  const player = currentState.player;
+  if (!player) { goBack(); return; }
+
+  document.getElementById('pageTitle').textContent = 'PROFILE';
+  updateBreadcrumb();
+  document.getElementById('personalisedBanner').classList.remove('show');
+
+  const detail = DATA.playerDetails[player.id] || DATA.playerDetails._default;
+
+  const view = document.createElement('div');
+  view.className = 'detail-view';
+  view.innerHTML = `
+    <div class="detail-hero" style="background:${player.bg};--detail-bg:${player.color}">
+      <span class="detail-hero-emoji">${player.emoji}</span>
+    </div>
+    <div class="detail-name" style="color:${player.color}">${player.name}</div>
+    <div class="detail-tag">${player.tag}</div>
+    <div class="stat-grid">
+      ${detail.stats.map(s => `
+        <div class="stat-box">
+          <div class="stat-value" style="color:${player.color}">${s.v}</div>
+          <div class="stat-label">${s.l}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="bio-block">${detail.bio}</div>
+    <div class="fun-fact">
+      <div class="fun-fact-label">⚡ UNIQUE FACT</div>
+      <div style="font-size:0.95rem;line-height:1.6;color:#e5e7eb">${detail.fact}</div>
+    </div>
+  `;
+
+  const content = document.getElementById('mainContent');
+  content.innerHTML = '';
+  content.appendChild(view);
+
+  updateTicker([player]);
+}
+
+function updateBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  const parts = [{ label: 'HOME', fn: () => { currentState = {level:'sports',sport:null,team:null}; render(); } }];
+  if (currentState.sport) parts.push({ label: currentState.sport.toUpperCase(), fn: () => { currentState = {level:'teams',sport:currentState.sport,team:null}; render(); } });
+  if (currentState.team) parts.push({ label: currentState.team.toUpperCase(), fn: () => { currentState = {...currentState,level:'players',player:null}; render(); } });
+  if (currentState.level === 'detail' && currentState.player) parts.push({ label: currentState.player.name.toUpperCase(), fn: null });
+
+  bc.innerHTML = parts.map((p, i) => {
+    const isLast = i === parts.length - 1;
+    return `${i > 0 ? '<span class="sep">›</span>' : ''}<span class="${isLast ? 'active' : ''}" onclick="${p.fn ? `(${p.fn.toString().replace(/\n/g,'')})()` : ''}">${p.label}</span>`;
+  }).join('');
+
+  // Re-attach click handlers properly
+  bc.querySelectorAll('span:not(.sep):not(.active)').forEach((el, i) => {
+    if (parts[i] && parts[i].fn) el.onclick = parts[i].fn;
+  });
+  bc.querySelectorAll('span').forEach((el, i) => {
+    const part = parts.filter(p => !p.sep)[0]; // rebuild properly
+  });
+  // Simpler approach: rebuild
+  bc.innerHTML = '';
+  parts.forEach((p, i) => {
+    if (i > 0) { const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '›'; bc.appendChild(sep); }
+    const el = document.createElement('span');
+    el.textContent = p.label;
+    if (i === parts.length - 1) el.className = 'active';
+    if (p.fn) el.onclick = p.fn;
+    bc.appendChild(el);
+  });
+
+  // Back button
+  let backBtn = document.querySelector('.back-btn');
+  if (backBtn) backBtn.remove();
+
+  if (currentState.level !== 'sports') {
+    const btn = document.createElement('button');
+    btn.className = 'back-btn';
+    btn.innerHTML = '← BACK';
+    btn.onclick = goBack;
+    document.getElementById('mainContent').before(btn);
+  }
+}
+
+function updateTicker(items) {
+  const ticker = document.getElementById('tickerInner');
+  const texts = items.flatMap(i => [`${i.emoji} ${i.name.toUpperCase()}`, `◆`]);
+  const doubled = [...texts, ...texts]; // seamless loop
+  ticker.innerHTML = doubled.map(t => `<span class="ticker-item">${t}</span>`).join('');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+render();
+</script>
+</body>
+</html>
